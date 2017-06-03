@@ -32,23 +32,35 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   
   //convert packet data into a *uint8_t so we can access it better
   uint8_t* hdr = (uint8_t*)(packet.data());
-  std::cerr << "type: " << ethertype(hdr) << std::endl;
+  printf("type: %04x\n", ethertype(hdr));
   
   // if the ethrnet frame is not ARP or IPv4
   if(ethertype(hdr) != ethertype_arp && ethertype(hdr) != ethertype_ip) {
-    std::cerr << "Not ARP or IPv4 Ether type" << std::endl;
+    // TODO: print a message?
+	std::cerr << "ERROR: Not ARP or IPv4 Ether type" << std::endl;
   }
-
-  std::cerr << "Incoming packet dest hardware address (MAC address): " << macToString(packet) << std::endl;
-
+  
+  // get current interface
   const Interface* iface = findIfaceByName(inIface);
   if (iface == nullptr) {
     std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
     return;
   }
-
-  std::cerr << "This interface mac address: " << macToString(iface->addr) << std::endl;
-
+  
+  std::string dest_addr = macToString(packet);
+  std::cerr << "Incoming packet dest hardware address (MAC address): ";
+  std::cerr << dest_addr << std::endl;
+  
+  std::string iface_addr = macToString(iface->addr);
+  std::cerr << "This interface mac address: ";
+  std::cerr << macToString(iface->addr) << std::endl;
+  
+  if (dest_addr.compare("ff:ff:ff:ff:ff:ff") && dest_addr.compare(iface_addr)) {
+    // TODO: decide whether to print a message
+	std::cerr << "Dropped packet, since destination MAC address is invalid";
+	std::cerr << std::endl;
+  }
+  
   //Prints the routing table info
   std::cerr << getRoutingTable() << std::endl;
 
