@@ -29,16 +29,15 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
   // std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   std::cerr << "Printing..." << std::endl;
-
+  
   //convert packet data into a *uint8_t so we can access it better
   uint8_t* hdr = (uint8_t*)(packet.data());
   std::cerr << "type: " << ethertype(hdr) << std::endl;
-
-  //If ethertype not ARP or IPv4
-  if(ethertype(hdr) != 0x0806 && ethertype(hdr)!= 0x0800) {
+  
+  // if the ethrnet frame is not ARP or IPv4
+  if(ethertype(hdr) != ethertype_arp && ethertype(hdr) != ethertype_ip) {
     std::cerr << "Not ARP or IPv4 Ether type" << std::endl;
   }
-
 
   const Interface* iface = findIfaceByName(inIface);
   if (iface == nullptr) {
