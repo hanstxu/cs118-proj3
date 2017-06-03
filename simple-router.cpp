@@ -32,13 +32,14 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
   //convert packet data into a *uint8_t so we can access it better
   uint8_t* hdr = (uint8_t*)(packet.data());
-  std::cerr << "type: " << ethertype(hdr) << std::endl;
+  std::cerr << "Payload type in hex: " << std::hex << ethertype(hdr) << std::dec << std::endl;
 
   //If ethertype not ARP or IPv4
   if(ethertype(hdr) != 0x0806 && ethertype(hdr)!= 0x0800) {
     std::cerr << "Not ARP or IPv4 Ether type" << std::endl;
   }
 
+  std::cerr << "Incoming packet dest hardware address (MAC address): " << macToString(packet) << std::endl;
 
   const Interface* iface = findIfaceByName(inIface);
   if (iface == nullptr) {
@@ -46,6 +47,9 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     return;
   }
 
+  std::cerr << "This interface mac address: " << macToString(iface->addr) << std::endl;
+
+  //Prints the routing table info
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
