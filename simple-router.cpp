@@ -39,12 +39,17 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     std::cerr << "Not ARP or IPv4 Ether type" << std::endl;
   }
 
+  std::cerr << "Incoming packet dest hardware address (MAC address): " << macToString(packet) << std::endl;
+
   const Interface* iface = findIfaceByName(inIface);
   if (iface == nullptr) {
     std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
     return;
   }
 
+  std::cerr << "This interface mac address: " << macToString(iface->addr) << std::endl;
+
+  //Prints the routing table info
   std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
