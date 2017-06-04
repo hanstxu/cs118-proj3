@@ -24,25 +24,95 @@ namespace simple_router {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // IMPLEMENT THIS METHOD
+std::string get_str_mac(const unsigned char* addr) {
+  int pos = 0;
+  uint8_t cur;
+  char s[18];
+  std::string temp = "";
+  for (; pos < ETHER_ADDR_LEN; pos++) {
+    cur = addr[pos];
+    if (pos > 0)
+      sprintf(s, ":");
+    std::stringstream ss;
+	ss << std::hex << (char)cur;
+	unsigned int t;
+	t << ss;
+	std::cerr<<t;
+	temp += t;
+    //snprintf(s, "%02X", std::string(cur));
+	fprintf(stderr, "%02X", cur);
+  }
+  
+  std::cout << "\nhello: " << temp << std::endl;
+  return temp;
+  //return std::string(s);
+}
+
 void 
 SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
-	return;
+  uint8_t* frame = (uint8_t*)(packet.data());
+  
+  Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
+  std::string src_addr = macToString(eth_src_addr);
+  fprintf(stderr, "ethernet src mac address: %s\n", src_addr.c_str());
+  
+  uint8_t* arp_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
+  const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(arp_frame);
+  
+  std::string test = get_str_mac(hdr->arp_sha);
+  fprintf(stderr, "Test %s\n", test.c_str());
+  
+  fprintf(stderr, "\tsender hardware address: ");
+  print_addr_eth(hdr->arp_sha);
+  
+  //ArpCache arp_cache = getArp();
+  //arp_cache.lookup(hdr->arp_tip);
+  
+  
+  
+  return;
 }
 
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
-	return;
+  // 14 = size of ethernet header
+  uint16_t ip_size = packet.size() - 14;
+  // TODO: maybe or maybe not include
+  if (ip_size < 2) {
+    std::cerr << "Invalid ip size length" << std::endl;
+  }
+
+  uint8_t* frame = (uint8_t*)(packet.data());
+  uint8_t* ip_frame = frame + sizeof(ethernet_hdr);
+  const ip_hdr *iphdr = (const ip_hdr *)(ip_frame);
+  uint16_t min_size = sizeof(icmp_hdr);
+  if (ip_size < min_size) {
+    fprintf(stderr, "Failed sent IP packet, insufficient length for header\n");
+  }
+
+  uint16_t ip_id = iphdr->ip_id;
+  
+  // ICMP packet
+  if (ip_id == 0x01) {
+	  
+  }
+  // forward packet
+  else {
+	  
+  }
+
+
+  return;
 }
 
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
-  // std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
+  //std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   std::cerr << "Printing..." << std::endl;
   
   //convert packet data into a *uint8_t so we can access it better
   uint8_t* hdr = (uint8_t*)(packet.data());
-  printf("type: %04x\n", ethertype(hdr));
   
   uint16_t e_type = ethertype(hdr);
   
