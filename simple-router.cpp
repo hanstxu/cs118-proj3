@@ -25,33 +25,20 @@ namespace simple_router {
 //////////////////////////////////////////////////////////////////////////
 // IMPLEMENT THIS METHOD
 std::string get_str_mac(const unsigned char* addr) {
-  int pos = 0;
-  uint8_t cur;
+  char sep = ':';
   char s[18];
-  std::string temp = "";
-  for (; pos < ETHER_ADDR_LEN; pos++) {
-    cur = addr[pos];
-    if (pos > 0)
-      sprintf(s, ":");
-    std::stringstream ss;
-	ss << std::hex << (char)cur;
-	unsigned int t;
-	t << ss;
-	std::cerr<<t;
-	temp += t;
-    //snprintf(s, "%02X", std::string(cur));
-	fprintf(stderr, "%02X", cur);
-  }
+  std::string res = "";
   
-  std::cout << "\nhello: " << temp << std::endl;
-  return temp;
-  //return std::string(s);
+  snprintf(s, sizeof(s), "%02x%c%02x%c%02x%c%02x%c%02x%c%02x",
+           addr[0], sep, addr[1], sep, addr[2], sep,
+           addr[3], sep, addr[4], sep, addr[5]);
+  
+  res = std::string(s);
+  return res;
 }
 
 void 
 SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
-  uint8_t* frame = (uint8_t*)(packet.data());
-  
   Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
   std::string src_addr = macToString(eth_src_addr);
   fprintf(stderr, "ethernet src mac address: %s\n", src_addr.c_str());
@@ -59,8 +46,10 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
   uint8_t* arp_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
   const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(arp_frame);
   
-  std::string test = get_str_mac(hdr->arp_sha);
-  fprintf(stderr, "Test %s\n", test.c_str());
+  std::string arp_src_addr = get_str_mac(hdr->arp_sha);
+  fprintf(stderr, "Test %s\n", arp_src_addr.c_str());
+  
+  fprintf(stderr, "strcmp: %d\n", src_addr.compare(arp_src_addr));
   
   fprintf(stderr, "\tsender hardware address: ");
   print_addr_eth(hdr->arp_sha);
