@@ -24,6 +24,16 @@ namespace simple_router {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 // IMPLEMENT THIS METHOD
+void 
+SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
+	return;
+}
+
+void
+SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
+	return;
+}
+
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
@@ -34,8 +44,10 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   uint8_t* hdr = (uint8_t*)(packet.data());
   printf("type: %04x\n", ethertype(hdr));
   
+  uint16_t e_type = ethertype(hdr);
+  
   // if the ethrnet frame is not ARP or IPv4
-  if(ethertype(hdr) != ethertype_arp && ethertype(hdr) != ethertype_ip) {
+  if(e_type != ethertype_arp && e_type != ethertype_ip) {
     // TODO: print a message?
 	std::cerr << "ERROR: Not ARP or IPv4 Ether type" << std::endl;
   }
@@ -59,6 +71,17 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     // TODO: decide whether to print a message
 	std::cerr << "Dropped packet, since destination MAC address is invalid";
 	std::cerr << std::endl;
+  }
+  
+  if (e_type == ethertype_arp) {
+	  handleARP(packet, inIface);
+  }
+  else if (e_type == ethertype_ip) {
+	  handleIP(packet, inIface);
+  }
+  else {
+	  // TODO: reformat control statements
+	  std::cerr << "Packet should be dropped" << std::endl;
   }
   
   //Prints the routing table info

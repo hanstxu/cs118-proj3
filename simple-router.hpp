@@ -31,7 +31,17 @@ class SimpleRouter
 public:
 
   SimpleRouter();
-
+  
+  /**
+   * Helper function - handle ARP packet
+   */
+  void handleARP(const Buffer& packet, const std::string& inIface);
+   
+  /**
+   * Helper function - handle IP packet
+   */
+  void handleIP(const Buffer& packet, const std::string& inIface);
+  
   /**
    * IMPLEMENT THIS METHOD
    *
