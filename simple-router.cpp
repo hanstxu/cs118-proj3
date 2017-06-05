@@ -76,11 +76,62 @@ Buffer make_arp(const Interface* iface, const arp_hdr *req) {
   return eth_frame;
 }
 
+void
+SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
+  const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
+  const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
+  const icmp_hdr *icmphdr = (const icmp_hdr *)(packet.data() +
+    sizeof(ethernet_hdr) + sizeof(ip_hdr));
+	
+  // ethernet header
+  ethernet_hdr eth_hdr;
+  memcpy(eth_hdr.ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
+  memcpy(eth_hdr.ether_shost, ehdr->ether_dhost, ETHER_ADDR_LEN * sizeof(unsigned char));
+  eth_hdr.ether_type = htons(ethertype_ip);
+  
+  // ip header
+  ip_hdr iph;
+  iph.ip_hl = iphdr->ip_hl;
+  iph.ip_v = iphdr->ip_v;
+  iph.ip_tos = iphdr->ip_tos;
+  iph.ip_len = iphdr->ip_len;
+  iph.ip_id = iphdr->ip_id;
+  iph.ip_off = iphdr->ip_off;
+  iph.ip_ttl = iphdr->ip_ttl;
+  iph.ip_p = iphdr->ip_p;
+  iph.ip_sum = iphdr->ip_sum;
+  iph.ip_src = iphdr->ip_dst;
+  iph.ip_dst = iphdr->ip_src;
+  
+  // icmp header
+  icmp_hdr icmph;
+  icmph.icmp_type = 0x0;
+  icmph.icmp_code = 0x0;
+  icmph.icmp_sum = 0x0;
+  
+  Buffer icmp_cksum;
+  icmp_cksum.assign((unsigned char*)&icmph, (unsigned char*)&icmph + 4);
+  icmp_cksum.insert(icmp_cksum.end(), packet.data() + 38, packet.data() + 98);
+  icmph.icmp_sum = cksum(icmp_cksum.data(), icmp_cksum.size());
+  
+  Buffer eth_frame;
+  eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + sizeof(ethernet_hdr));
+  Buffer ip_frame;
+  ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
+  Buffer icmp_frame;
+  icmp_frame.assign((unsigned char*)&icmph, (unsigned char*)&icmph + sizeof(icmp_hdr));
+  
+  eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
+  eth_frame.insert(eth_frame.end(), icmp_frame.begin(), icmp_frame.end());
+  eth_frame.insert(eth_frame.end(), packet.data() + 38, packet.data() + 98);
+  
+  sendPacket(eth_frame, inIface);
+  
+  return;
+}
+
 void 
 SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
-
-  // print_hdr_arp(packet.data() + 14);
-
   Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
   std::string src_addr = macToString(eth_src_addr);
   
@@ -117,32 +168,26 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
 
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
-  // 14 = size of ethernet header
-  uint16_t ip_size = packet.size() - 14;
-  // TODO: maybe or maybe not include
-  if (ip_size < 2) {
-    std::cerr << "Invalid ip size length" << std::endl;
-  }
-
-  uint8_t* frame = (uint8_t*)(packet.data());
-  uint8_t* ip_frame = frame + sizeof(ethernet_hdr);
+  uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
   const ip_hdr *iphdr = (const ip_hdr *)(ip_frame);
   uint16_t min_size = sizeof(icmp_hdr);
-  if (ip_size < min_size) {
+  if (iphdr->ip_hl < 5) {
     fprintf(stderr, "Failed sent IP packet, insufficient length for header\n");
   }
-
-  uint16_t ip_id = iphdr->ip_id;
+  
+  if (cksum(ip_frame, 20) != 0xFFFF) {
+	fprintf(stderr, "Failed checksum, discard IP packe\n");
+  }
   
   // ICMP packet
-  if (ip_id == 0x01) {
-	  
+  if (iphdr->ip_p == 0x01) {
+	  std::cerr << "ICMP Packet" << std::endl;
+	  handleICMP(packet, inIface);
   }
   // forward packet
   else {
 	  
   }
-
 
   return;
 }
@@ -150,7 +195,7 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
-  //std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
+  std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   std::cerr << "Printing..." << std::endl;
   
   print_hdrs(packet);
@@ -198,7 +243,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   }
   
   //Prints the routing table info
-  std::cerr << getRoutingTable() << std::endl;
+  //std::cerr << getRoutingTable() << std::endl;
 
   // FILL THIS IN
 
