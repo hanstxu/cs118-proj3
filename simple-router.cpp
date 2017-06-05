@@ -41,21 +41,28 @@ void
 SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
   Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
   std::string src_addr = macToString(eth_src_addr);
-  fprintf(stderr, "ethernet src mac address: %s\n", src_addr.c_str());
   
   uint8_t* arp_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
   const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(arp_frame);
-  
   std::string arp_src_addr = get_str_mac(hdr->arp_sha);
-  fprintf(stderr, "Test %s\n", arp_src_addr.c_str());
   
-  fprintf(stderr, "strcmp: %d\n", src_addr.compare(arp_src_addr));
+  // ignore other requests
+  if (!src_addr.compare(arp_src_addr)) {
+    fprintf(stderr, "ERROR: ethernet src mac does not match with ARP src mac");
+    return;
+  }
   
-  fprintf(stderr, "\tsender hardware address: ");
-  
-  //ArpCache arp_cache = getArp();
-  //arp_cache.lookup(hdr->arp_tip);
-  
+  ArpCache arp_cache = getArp();
+  ArpEntry* entry = arp_cache.lookup(hdr->arp_tip);
+  if (entry == nullptr) {
+	  // queue and send arp requests
+  }
+  else {
+	  // forward IP address
+	  arp_hdr send_arp 
+	  
+	  sendPacket();
+  }
   
   
   return;
