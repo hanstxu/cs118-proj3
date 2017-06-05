@@ -23,6 +23,14 @@ namespace simple_router {
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+
+void
+SimpleRouter::getPacket(const Buffer& ether_hdr, const Buffer& payload) {
+  return;
+}
+
+
+
 // IMPLEMENT THIS METHOD
 std::string get_str_mac(const unsigned char* addr) {
   char sep = ':';
@@ -39,6 +47,9 @@ std::string get_str_mac(const unsigned char* addr) {
 
 void 
 SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
+
+  // print_hdr_arp(packet.data() + 14);
+
   Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
   std::string src_addr = macToString(eth_src_addr);
   
@@ -47,21 +58,83 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
   std::string arp_src_addr = get_str_mac(hdr->arp_sha);
   
   // ignore other requests
-  if (!src_addr.compare(arp_src_addr)) {
+  if (src_addr.compare(arp_src_addr) != 0) {
     fprintf(stderr, "ERROR: ethernet src mac does not match with ARP src mac");
     return;
   }
   
-  ArpCache arp_cache = getArp();
-  ArpEntry* entry = arp_cache.lookup(hdr->arp_tip);
+  std::shared_ptr<ArpEntry> entry = m_arp.lookup(hdr->arp_tip);
+
+  //entry == nullptr means that the entry was not in the cache
+
+  //currently just send, TODO: if statement to check if we should reply back to client
   if (entry == nullptr) {
-	  // queue and send arp requests
+	  arp_hdr arp_reply;
+    arp_reply.arp_hrd = htons(arp_hrd_ethernet);             /* format of hardware address   */
+    arp_reply.arp_pro = htons(ethertype_ip);                 /* format of protocol address   */
+    arp_reply.arp_hln = ETHER_ADDR_LEN;               /* length of hardware address   */
+    arp_reply.arp_pln = 0x04;                         /* length of protocol address   */
+    arp_reply.arp_op = htons(arp_op_reply);                /* ARP opcode (command)         */
+
+    //mac address of router
+    const Interface* iface = findIfaceByName(inIface);
+    if (iface == nullptr) {
+      std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
+      return;
+    }
+    Buffer mac_addr = iface->addr;
+    memcpy(arp_reply.arp_sha, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));      //sender hardware address
+    arp_reply.arp_sip = iface->ip;
+
+    //TODO: Fill in with proper arp_target hardware address
+    memcpy(arp_reply.arp_tha, hdr->arp_sha, ETHER_ADDR_LEN * sizeof(unsigned char));                 /* target hardware address      */
+    arp_reply.arp_tip = hdr->arp_sip;                 /* target IP address            */
+    
+
+    // // std::cerr << "Debug Print: " << arp_reply.arp_sha << " " << arp_reply.arp_tha << std::endl;
+    std::cerr << "Should be the destination ethernet address: " << get_str_mac(hdr->arp_sha) << std::endl;
+    std::cerr << "Should be the source ethernet address: " << get_str_mac(mac_addr.data()) << std::endl;
+    
+
+    ethernet_hdr ether_reply;
+    memcpy(ether_reply.ether_dhost, (hdr->arp_sha), ETHER_ADDR_LEN * sizeof(unsigned char)); /* destination ethernet address */
+    memcpy(ether_reply.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char)); /* source ethernet address */
+    ether_reply.ether_type = htons(ethertype_arp);                  /* packet type ID */
+
+
+    Buffer send_packet1;
+    send_packet1.assign((unsigned char*)&ether_reply, (unsigned char*)&ether_reply + 14);
+    Buffer send_packet2;
+    send_packet2.assign((unsigned char*)&arp_reply, (unsigned char*)&arp_reply + 28);
+
+    send_packet1.insert(send_packet1.end(), send_packet2.begin(), send_packet2.end());
+    print_hdrs(send_packet1);
+
+    std::cerr<< "Hello world"<< std::endl;
+    std::cerr << "arp_reply.arp_tip" << arp_reply.arp_tip;
+
+    //const Interface* oiface = findIfaceByIp(arp_reply.arp_tip);
+
+
+    //std::string oiface = findIfaceByIp(arp_reply.arp_tip)->name;
+    
+    //std::cerr << "Print oiface: " << oiface << std::endl;
+    sendPacket(send_packet1, inIface);
+
+    // queue
+    // m_arp.queueRequest(hdr->arp_tip, send_buffer, inIface);
+    //send arp req
+    const std::string outIface = "";
+    // sendPacket(send_packet, outIface);
+    
+
+
   }
   else {
 	  // forward IP address
-	  arp_hdr send_arp 
+	  // arp_hdr send_arp;
 	  
-	  sendPacket();
+	  // sendPacket();
   }
   
   
@@ -106,6 +179,8 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   //std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   std::cerr << "Printing..." << std::endl;
   
+  print_hdrs(packet);
+
   //convert packet data into a *uint8_t so we can access it better
   uint8_t* hdr = (uint8_t*)(packet.data());
   
@@ -137,7 +212,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 	std::cerr << "Dropped packet, since destination MAC address is invalid";
 	std::cerr << std::endl;
   }
-  
+
   if (e_type == ethertype_arp) {
 	  handleARP(packet, inIface);
   }

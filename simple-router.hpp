@@ -31,7 +31,13 @@ class SimpleRouter
 public:
 
   SimpleRouter();
-  
+
+
+  /**
+  * Helper function - Send Ethernet Packet w/ Payload
+  */
+  void getPacket(const Buffer& ether_hdr, const Buffer& payload);
+
   /**
    * Helper function - handle ARP packet
    */
@@ -82,8 +88,8 @@ public:
   /**
    * Get ARP table
    */
-  const ArpCache&
-  getArp() const;
+   ArpCache&
+  getArp();
 
   /**
    * Print router interfaces
@@ -131,8 +137,8 @@ SimpleRouter::getRoutingTable() const
   return m_routingTable;
 }
 
-inline const ArpCache&
-SimpleRouter::getArp() const
+inline  ArpCache&
+SimpleRouter::getArp() 
 {
   return m_arp;
 }

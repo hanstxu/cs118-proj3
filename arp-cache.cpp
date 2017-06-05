@@ -32,11 +32,11 @@ namespace simple_router {
 void
 ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
-  std::cerr << "periodicCheckArpRequestsAndCacheEntries" << std::endl;
+  // std::cerr << "periodicCheckArpRequestsAndCacheEntries " << std::endl;
   // FILL THIS IN
   std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
 
-  std::cerr << "m_arpRequest size: " << m_arpRequests.size();
+  // std::cerr << "m_arpRequest size: " << m_arpRequests.size() << std::endl;
 
   //Handle all requests in queued requests
   for(auto& request : m_arpRequests) {
@@ -62,15 +62,10 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 void
 ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
   // std::cerr << "req->timeSent: " << req->timeSent << std::endl;
-
-
-
   time_point now = steady_clock::now();
 
-  bool timebool = ((now - req->timeSent ) > seconds(1));
-  std::cerr << "timebool: " << timebool << std::endl;
-
-  if(now - req->timeSent > seconds(1)) {
+  bool hasBeenOneSecond = ((now - req->timeSent ) > seconds(1));
+  if(hasBeenOneSecond) {
     if(req->nTimesSent >= 5){
       std::cerr << "send icmp host unreachable to source addr of all pkts waiting on this request" << std::endl;
       // m_arpRequests.removeRequest(req)
@@ -113,6 +108,9 @@ ArpCache::~ArpCache()
   m_tickerThread.join();
 }
 
+
+
+
 std::shared_ptr<ArpEntry>
 ArpCache::lookup(uint32_t ip)
 {
@@ -130,6 +128,7 @@ ArpCache::lookup(uint32_t ip)
 std::shared_ptr<ArpRequest>
 ArpCache::queueRequest(uint32_t ip, const Buffer& packet, const std::string& iface)
 {
+  print_hdr_arp(packet.data() + 14);
   std::lock_guard<std::mutex> lock(m_mutex);
 
   auto request = std::find_if(m_arpRequests.begin(), m_arpRequests.end(),
