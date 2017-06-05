@@ -52,7 +52,6 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
   fprintf(stderr, "strcmp: %d\n", src_addr.compare(arp_src_addr));
   
   fprintf(stderr, "\tsender hardware address: ");
-  print_addr_eth(hdr->arp_sha);
   
   //ArpCache arp_cache = getArp();
   //arp_cache.lookup(hdr->arp_tip);

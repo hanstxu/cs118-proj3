@@ -70,6 +70,7 @@
 #include <thread>
 #include <chrono>
 #include <memory>
+#include <ctime>
 
 namespace simple_router {
 
@@ -143,6 +144,8 @@ public:
   void
   periodicCheckArpRequestsAndCacheEntries();
 
+  void handle_arpreq(std::shared_ptr<ArpRequest>& req);
+
   /**
    * Checks if an IP->MAC mapping is in the cache. IP is in network byte order.
    * You must free the returned structure if it is not NULL.
@@ -168,6 +171,9 @@ public:
    */
   void
   removeRequest(const std::shared_ptr<ArpRequest>& entry);
+
+  void
+  removeEntry(const std::shared_ptr<ArpEntry>& entry);
 
   /**
    * This method performs two functions:

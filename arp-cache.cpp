@@ -26,13 +26,74 @@ namespace simple_router {
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+
 // IMPLEMENT THIS METHOD
+
 void
 ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
-
+  std::cerr << "periodicCheckArpRequestsAndCacheEntries" << std::endl;
   // FILL THIS IN
+  std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
 
+  std::cerr << "m_arpRequest size: " << m_arpRequests.size();
+
+  //Handle all requests in queued requests
+  for(auto& request : m_arpRequests) {
+    handle_arpreq(request);
+  }
+
+
+
+  //Remove invalid entries
+  for (auto& entry : m_cacheEntries) {
+    //if not entry->isValid
+    if(!entry->isValid) {
+      //record entry for removal
+      cacheEntriesToRemove.push_back(entry);
+    }
+  }
+  //remove all entries marked for removal
+  for(auto& entry: cacheEntriesToRemove) {
+    removeEntry(entry);
+  }
+}
+
+void
+ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
+  // std::cerr << "req->timeSent: " << req->timeSent << std::endl;
+
+
+
+  time_point now = steady_clock::now();
+
+  bool timebool = ((now - req->timeSent ) > seconds(1));
+  std::cerr << "timebool: " << timebool << std::endl;
+
+  if(now - req->timeSent > seconds(1)) {
+    if(req->nTimesSent >= 5){
+      std::cerr << "send icmp host unreachable to source addr of all pkts waiting on this request" << std::endl;
+      // m_arpRequests.removeRequest(req)
+    }
+    else {
+      std::cerr << "Increment nTimesSent" << std::endl;
+
+      // arp_hdr arp_req;
+      // arp_req.arp_hrd = arp_hrd_ethernet;
+      // arp_req.arp_pro = ethertype_ip;
+      // arp_req.arp_hln = ETHER_ADDR_LEN;
+      // arp_req.arp_pln = 0x04;
+      // arp_req.arp_op = arp_op_request;
+      // arp_req.arp_sha = ;
+      // arp_req.arp_sip = ;
+      // arp_req.aro_tha = ;
+      // arp_req.arp_tip = ;
+
+      // sendPacket(buffer, interface)
+      // req->timeSent = now;
+      // req->nTimesSent++;
+    }
+  }
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -91,6 +152,14 @@ ArpCache::removeRequest(const std::shared_ptr<ArpRequest>& entry)
   std::lock_guard<std::mutex> lock(m_mutex);
   m_arpRequests.remove(entry);
 }
+
+void
+ArpCache::removeEntry(const std::shared_ptr<ArpEntry>& entry)
+{
+  std::lock_guard<std::mutex> lock(m_mutex);
+  m_cacheEntries.remove(entry);
+}
+
 
 std::shared_ptr<ArpRequest>
 ArpCache::insertArpEntry(const Buffer& mac, uint32_t ip)
