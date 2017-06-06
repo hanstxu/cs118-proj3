@@ -179,11 +179,69 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 	fprintf(stderr, "Failed checksum, discard IP packe\n");
   }
   
-  const Interface* iface = findIfaceByIp(iphdr->ip_dst);
+  uint32_t ip_destination = iphdr->ip_dst;
+  const Interface* iface = findIfaceByIp(ip_destination);
   
   // not directed to Router
   if (iface == nullptr) {
-    std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
+    std::cerr << "\nReceived packet, but interface is unknown, ignoring" << std::endl;
+    //arp cache lookup
+    //valid entry found, proceed w/ handling IP Packet
+    std::shared_ptr<ArpEntry> entry = m_arp.lookup(ip_destination);
+    if(entry != nullptr) {
+      //proceed w/ handling ip packet
+    }
+    //queue received packet and start sending ARP request to discover the IP-MAC mapping
+    else {
+      //TODO: check if right iface, packet, ipdest
+      m_arp.queueRequest(ip_destination, packet, inIface);
+
+      const Interface* outIface = findIfaceByName("sw0-eth1");
+      std::cerr << "outIface name: " << outIface->name << "\noutIface mac addr: " << get_str_mac(outIface->addr.data()) << "\noutIface ip: " << ipToString(outIface->ip) << std::endl;
+
+      Buffer send_arp_req;
+      arp_hdr arp_req;
+      arp_req.arp_hrd = htons(arp_hrd_ethernet);
+      arp_req.arp_pro = htons(ethertype_ip);
+      arp_req.arp_hln = ETHER_ADDR_LEN;
+      arp_req.arp_pln = 0x04;
+      arp_req.arp_op = htons(arp_op_request);
+      
+
+      // // source ip and hardware address
+      Buffer mac_addr = outIface->addr;
+      memcpy(arp_req.arp_sha, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+      arp_req.arp_sip = outIface->ip;
+
+      // // target ip and hardware address
+      uint8_t test[6];
+      memset(test, 0xFF, 6);
+      memcpy(arp_req.arp_tha, &test, ETHER_ADDR_LEN * sizeof(unsigned char));
+      arp_req.arp_tip = ip_destination;
+      
+      // // ethernet header
+      ethernet_hdr eth_hdr;
+
+      memcpy(eth_hdr.ether_dhost, &test, ETHER_ADDR_LEN * sizeof(unsigned char));
+      memcpy(eth_hdr.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+      eth_hdr.ether_type = htons(ethertype_arp);
+      
+      Buffer eth_frame;
+      eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
+      Buffer arp_packet;
+      arp_packet.assign((unsigned char*)&arp_req, (unsigned char*)&arp_req + 28);
+
+      eth_frame.insert(eth_frame.end(), arp_packet.begin(), arp_packet.end());
+
+      print_hdrs(eth_frame);
+
+      sendPacket(eth_frame, "sw0-eth1" );
+    }
+      //handle ip packet
+
+      //queue received packet 
+
+
     return;
   }
   // directed to the router

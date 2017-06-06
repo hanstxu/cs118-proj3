@@ -71,7 +71,7 @@ ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
       // m_arpRequests.removeRequest(req)
     }
     else {
-      std::cerr << "Increment nTimesSent" << std::endl;
+      // std::cerr << "Increment nTimesSent" << std::endl;
 
       // arp_hdr arp_req;
       // arp_req.arp_hrd = arp_hrd_ethernet;
@@ -128,7 +128,7 @@ ArpCache::lookup(uint32_t ip)
 std::shared_ptr<ArpRequest>
 ArpCache::queueRequest(uint32_t ip, const Buffer& packet, const std::string& iface)
 {
-  print_hdr_arp(packet.data() + 14);
+  // print_hdr_arp(packet.data() + 14);
   std::lock_guard<std::mutex> lock(m_mutex);
 
   auto request = std::find_if(m_arpRequests.begin(), m_arpRequests.end(),
