@@ -43,10 +43,17 @@ public:
    */
   void handleICMP(const Buffer& packet, const std::string& inIface);
 
+  void sendArpToGetIpMac(const Buffer& packet, const std::string& inIface, uint32_t ip_destination);
+
   /**
-   * Helper function - handle ARP packet
+   * Helper function - handle ARP packet request
    */
-  void handleARP(const Buffer& packet, const std::string& inIface);
+  void handleArpRequest(const Buffer& packet, const std::string& inIface);
+
+  /**
+   * Helper function - handle ARP packet reply
+   */
+  void handleArpReply(const Buffer& packet, const std::string& inIface);
    
   /**
    * Helper function - handle IP packet

@@ -130,8 +130,58 @@ SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
   return;
 }
 
+void SimpleRouter::sendArpToGetIpMac(const Buffer& packet, const std::string& inIface, uint32_t ip_destination) {
+    std::cerr << "Queued request" << std::endl;
+    m_arp.queueRequest(ip_destination, packet, inIface);
+
+    RoutingTableEntry r_entry = m_routingTable.lookup(ip_destination);
+    
+
+    const Interface* outIface = findIfaceByName(r_entry.ifName);
+    // std::cerr << "outIface name: " << outIface->name << "\noutIface mac addr: " << get_str_mac(outIface->addr.data()) << "\noutIface ip: " << ipToString(outIface->ip) << std::endl;
+
+    Buffer send_arp_req;
+    arp_hdr arp_req;
+    arp_req.arp_hrd = htons(arp_hrd_ethernet);
+    arp_req.arp_pro = htons(ethertype_ip);
+    arp_req.arp_hln = ETHER_ADDR_LEN;
+    arp_req.arp_pln = 0x04;
+    arp_req.arp_op = htons(arp_op_request);
+    
+
+    // // source ip and hardware address
+    Buffer mac_addr = outIface->addr;
+    memcpy(arp_req.arp_sha, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+    arp_req.arp_sip = outIface->ip;
+
+    // // target ip and hardware address
+    uint8_t broadcast[6];
+    memset(broadcast, 0x00, 6);
+    memcpy(arp_req.arp_tha, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
+    arp_req.arp_tip = ip_destination;
+
+    memset(broadcast, 0xFF, 6);
+    
+    // // ethernet header
+    ethernet_hdr eth_hdr;
+
+    memcpy(eth_hdr.ether_dhost, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
+    memcpy(eth_hdr.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+    eth_hdr.ether_type = htons(ethertype_arp);
+    
+    Buffer eth_frame;
+    eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
+    Buffer arp_packet;
+    arp_packet.assign((unsigned char*)&arp_req, (unsigned char*)&arp_req + 28);
+
+    eth_frame.insert(eth_frame.end(), arp_packet.begin(), arp_packet.end());
+    std::cerr << "Sending this packet to srv to get MAC address..." << std::endl;
+
+    sendPacket(eth_frame, r_entry.ifName );
+}
+
 void 
-SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
+SimpleRouter::handleArpRequest(const Buffer& packet, const std::string& inIface) {
   Buffer eth_src_addr(packet.begin() + 6, packet.end() + 12);
   std::string src_addr = macToString(eth_src_addr);
   
@@ -166,6 +216,12 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
   return;
 }
 
+void 
+SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
+  std::cerr << "Handling arp reply from server" << std::endl;
+  
+}
+
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
@@ -194,57 +250,8 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     //queue received packet and start sending ARP request to discover the IP-MAC mapping
     else {
       //TODO: check if right iface, packet, ipdest
-      std::cerr << "Queued request" << std::endl;
-      m_arp.queueRequest(ip_destination, packet, inIface);
-
-      const Interface* outIface = findIfaceByName("sw0-eth1");
-      std::cerr << "outIface name: " << outIface->name << "\noutIface mac addr: " << get_str_mac(outIface->addr.data()) << "\noutIface ip: " << ipToString(outIface->ip) << std::endl;
-
-      Buffer send_arp_req;
-      arp_hdr arp_req;
-      arp_req.arp_hrd = htons(arp_hrd_ethernet);
-      arp_req.arp_pro = htons(ethertype_ip);
-      arp_req.arp_hln = ETHER_ADDR_LEN;
-      arp_req.arp_pln = 0x04;
-      arp_req.arp_op = htons(arp_op_request);
-      
-
-      // // source ip and hardware address
-      Buffer mac_addr = outIface->addr;
-      memcpy(arp_req.arp_sha, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
-      arp_req.arp_sip = outIface->ip;
-
-      // // target ip and hardware address
-      uint8_t broadcast[6];
-      memset(broadcast, 0xFF, 6);
-      memcpy(arp_req.arp_tha, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
-      arp_req.arp_tip = ip_destination;
-
-      memset(broadcast, 0x00, 6);
-      
-      // // ethernet header
-      ethernet_hdr eth_hdr;
-
-      memcpy(eth_hdr.ether_dhost, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
-      memcpy(eth_hdr.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
-      eth_hdr.ether_type = htons(ethertype_arp);
-      
-      Buffer eth_frame;
-      eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
-      Buffer arp_packet;
-      arp_packet.assign((unsigned char*)&arp_req, (unsigned char*)&arp_req + 28);
-
-      eth_frame.insert(eth_frame.end(), arp_packet.begin(), arp_packet.end());
-      std::cerr << "Sending this packet to srv1 to get MAC address..." << std::endl;
-      print_hdrs(eth_frame);
-
-      sendPacket(eth_frame, "sw0-eth1" );
+      sendArpToGetIpMac(packet, inIface, ip_destination);
     }
-      //handle ip packet
-
-      //queue received packet 
-
-
     return;
   }
   // directed to the router
@@ -308,7 +315,15 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   }
 
   if (e_type == ethertype_arp) {
-	  handleARP(packet, inIface);
+    const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(packet.data()+sizeof(ethernet_hdr));
+    
+    if(ntohs(hdr->arp_op) == arp_op_request) {
+  	  handleArpRequest(packet, inIface);
+    }
+    else {
+      handleArpReply(packet, inIface);
+    }
+
   }
   else if (e_type == ethertype_ip) {
 	  handleIP(packet, inIface);
@@ -317,13 +332,9 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 	  // TODO: reformat control statements
 	  std::cerr << "Packet should be dropped" << std::endl;
   }
-  
-  //Prints the routing table info
-  //std::cerr << getRoutingTable() << std::endl;
-
-  // FILL THIS IN
 
 }
+
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
