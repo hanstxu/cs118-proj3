@@ -144,7 +144,14 @@ public:
   void
   periodicCheckArpRequestsAndCacheEntries();
 
-  void handle_arpreq(std::shared_ptr<ArpRequest>& req);
+
+  /**
+   * Handles the arp request called in periodicCheckArpRequestsAndCacheEntries.
+   * This function handles sending ARP requests if necessary:
+   * Sends every second, up to nTimes sent
+   */  
+  void 
+  handle_arpreq(std::shared_ptr<ArpRequest>& req);
 
   /**
    * Checks if an IP->MAC mapping is in the cache. IP is in network byte order.

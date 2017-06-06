@@ -155,8 +155,8 @@ SimpleRouter::handleARP(const Buffer& packet, const std::string& inIface) {
       std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
       return;
     }
-    
     Buffer router_arp = make_arp(iface, hdr);
+    std::cerr << "Sending ARP back to client" << std::endl;
     sendPacket(router_arp, inIface);
   }
   else {
@@ -194,6 +194,7 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     //queue received packet and start sending ARP request to discover the IP-MAC mapping
     else {
       //TODO: check if right iface, packet, ipdest
+      std::cerr << "Queued request" << std::endl;
       m_arp.queueRequest(ip_destination, packet, inIface);
 
       const Interface* outIface = findIfaceByName("sw0-eth1");
@@ -214,15 +215,17 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
       arp_req.arp_sip = outIface->ip;
 
       // // target ip and hardware address
-      uint8_t test[6];
-      memset(test, 0xFF, 6);
-      memcpy(arp_req.arp_tha, &test, ETHER_ADDR_LEN * sizeof(unsigned char));
+      uint8_t broadcast[6];
+      memset(broadcast, 0xFF, 6);
+      memcpy(arp_req.arp_tha, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
       arp_req.arp_tip = ip_destination;
+
+      memset(broadcast, 0x00, 6);
       
       // // ethernet header
       ethernet_hdr eth_hdr;
 
-      memcpy(eth_hdr.ether_dhost, &test, ETHER_ADDR_LEN * sizeof(unsigned char));
+      memcpy(eth_hdr.ether_dhost, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
       memcpy(eth_hdr.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
       eth_hdr.ether_type = htons(ethertype_arp);
       
@@ -232,7 +235,7 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
       arp_packet.assign((unsigned char*)&arp_req, (unsigned char*)&arp_req + 28);
 
       eth_frame.insert(eth_frame.end(), arp_packet.begin(), arp_packet.end());
-
+      std::cerr << "Sending this packet to srv1 to get MAC address..." << std::endl;
       print_hdrs(eth_frame);
 
       sendPacket(eth_frame, "sw0-eth1" );
@@ -264,9 +267,13 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
+
   std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   std::cerr << "Printing..." << std::endl;
-  
+
+
+  // std::cerr << m_arp << std::endl << std::endl;
+    
   print_hdrs(packet);
 
   //convert packet data into a *uint8_t so we can access it better

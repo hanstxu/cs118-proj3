@@ -61,17 +61,16 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 
 void
 ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
-  // std::cerr << "req->timeSent: " << req->timeSent << std::endl;
+  // std::cerr << "req->timeSent: " << (char*)(req->timeSent) << std::endl;
   time_point now = steady_clock::now();
-
+  // std::cerr << std::chrono::duration_cast<seconds>((now - req->timeSent)).count() << " seconds   "  << std::endl;
   bool hasBeenOneSecond = ((now - req->timeSent ) > seconds(1));
   if(hasBeenOneSecond) {
     if(req->nTimesSent >= 5){
       std::cerr << "send icmp host unreachable to source addr of all pkts waiting on this request" << std::endl;
-      // m_arpRequests.removeRequest(req)
+      removeRequest(req);
     }
     else {
-      // std::cerr << "Increment nTimesSent" << std::endl;
 
       // arp_hdr arp_req;
       // arp_req.arp_hrd = arp_hrd_ethernet;
@@ -85,8 +84,9 @@ ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
       // arp_req.arp_tip = ;
 
       // sendPacket(buffer, interface)
-      // req->timeSent = now;
-      // req->nTimesSent++;
+      req->timeSent = now;
+      req->nTimesSent++;
+      std::cerr << "nTimes sent: " << req->nTimesSent << std::endl;
     }
   }
 }
