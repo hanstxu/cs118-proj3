@@ -39,6 +39,11 @@ public:
   void getPacket(const Buffer& ether_hdr, const Buffer& payload);
 
   /**
+   * Helper function - handle ICMP packet
+   */
+  void handleICMP(const Buffer& packet, const std::string& inIface);
+  
+  /**
    * Helper function - handle ARP packet
    */
   void handleARP(const Buffer& packet, const std::string& inIface);
