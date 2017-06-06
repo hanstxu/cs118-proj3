@@ -179,14 +179,25 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 	fprintf(stderr, "Failed checksum, discard IP packe\n");
   }
   
-  // ICMP packet
-  if (iphdr->ip_p == 0x01) {
+  const Interface* iface = findIfaceByIp(iphdr->ip_dst);
+  
+  // not directed to Router
+  if (iface == nullptr) {
+    std::cerr << "Received packet, but interface is unknown, ignoring" << std::endl;
+    return;
+  }
+  // directed to the router
+  else {
+	// ICMP packet
+    if (iphdr->ip_p == 0x01) {
 	  std::cerr << "ICMP Packet" << std::endl;
 	  handleICMP(packet, inIface);
-  }
-  // forward packet
-  else {
-	  
+    }
+    // forward packet
+    else {
+      std::cerr << "Packet directed to router but no ICMP packet, so discard" << std::endl;
+      return;  
+    }
   }
 
   return;
