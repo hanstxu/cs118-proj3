@@ -132,10 +132,8 @@ SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
 
 void SimpleRouter::sendArpToGetIpMac(const Buffer& packet, const std::string& inIface, uint32_t ip_destination) {
     std::cerr << "Queued request" << std::endl;
-    m_arp.queueRequest(ip_destination, packet, inIface);
-
     RoutingTableEntry r_entry = m_routingTable.lookup(ip_destination);
-    
+    m_arp.queueRequest(ip_destination, packet, r_entry.ifName);
 
     const Interface* outIface = findIfaceByName(r_entry.ifName);
     // std::cerr << "outIface name: " << outIface->name << "\noutIface mac addr: " << get_str_mac(outIface->addr.data()) << "\noutIface ip: " << ipToString(outIface->ip) << std::endl;
@@ -216,17 +214,54 @@ SimpleRouter::handleArpRequest(const Buffer& packet, const std::string& inIface)
   return;
 }
 
+
+  //  req = cache.insertArpEntry(ip, mac)
+
+  //  if req != nullptr:
+  //      send all packets on the req->packets linked list
+  //      cache.removeRequest(req)
+
+  /**
+   * This method performs two functions:
+   *
+   * 1) Looks up this IP in the request queue. If it is found, returns a pointer
+   *    to the ArpRequest with this IP. Otherwise, returns nullptr.
+   * 2) Inserts this IP to MAC mapping in the cache, and marks it valid.
+   */
+  // std::shared_ptr<ArpRequest>
+  // insertArpEntry(const Buffer& mac, uint32_t ip);
+
 void 
 SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
-  std::cerr << "Handling arp reply from server" << std::endl;
-  
+  std::cerr << "****** Handling arp reply from server******\n" << std::endl;
+  const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(packet.data()+sizeof(ethernet_hdr));
+  Buffer mac_address(hdr->arp_sha, hdr->arp_sha + ETHER_ADDR_LEN);
+
+  std::cerr << "MAC Address: " << macToString(mac_address) << ", and IP address: " << ipToString(hdr->arp_sip) << std::endl;
+  std::cerr << m_arp;
+  std::shared_ptr<ArpRequest> req = m_arp.insertArpEntry(mac_address, hdr->arp_sip);
+  std::cerr << "Just inserted arp entry" << std::endl;
+  if(req != nullptr) {
+    std::cerr << "Supposed to send all packets here!!!" << std::endl;
+    //send all packets on the req->packets linked list
+    m_arp.removeRequest(req);
+
+  }
+  else {
+    std::cerr << "Inserted into mac mapping then..?" << std::endl;
+  }
+
+  //print m_arp again
+  std::cerr << m_arp;
+
+
+
 }
 
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
   const ip_hdr *iphdr = (const ip_hdr *)(ip_frame);
-  uint16_t min_size = sizeof(icmp_hdr);
   if (iphdr->ip_hl < 5) {
     fprintf(stderr, "Failed sent IP packet, insufficient length for header\n");
   }
