@@ -32,58 +32,56 @@ namespace simple_router {
 void
 ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
-  // std::cerr << "periodicCheckArpRequestsAndCacheEntries " << std::endl;
   // FILL THIS IN
-  std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
-
-  // std::cerr << "m_arpRequest size: " << m_arpRequests.size() << std::endl;
-
+  //std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
+  std::cerr << "ARP requests size: " << m_arpRequests.size() << std::endl;
+  
   //Handle all requests in queued requests
   for(auto& request : m_arpRequests) {
+	std::cerr << "what's going on\n";
     handle_arpreq(request);
   }
 
-
-
+  std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
+  for (auto& entry : m_cacheEntries) {
+    std::cerr << entry->isValid << " isValid value\n";
+  }
+  
+  std::shared_ptr<ArpEntry> remove_entry;
+  
   //Remove invalid entries
   for (auto& entry : m_cacheEntries) {
     //if not entry->isValid
     if(!entry->isValid) {
       //record entry for removal
-      cacheEntriesToRemove.push_back(entry);
+      remove_entry = entry;
     }
   }
-  //remove all entries marked for removal
-  for(auto& entry: cacheEntriesToRemove) {
-    removeEntry(entry);
-  }
+  
+  //remove entry marked for removal
+  if (remove_entry != nullptr)
+    removeEntry(remove_entry);
+
+  std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
 }
 
 void
 ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
-  // std::cerr << "req->timeSent: " << (char*)(req->timeSent) << std::endl;
   time_point now = steady_clock::now();
-  // std::cerr << std::chrono::duration_cast<seconds>((now - req->timeSent)).count() << " seconds   "  << std::endl;
-  bool hasBeenOneSecond = ((now - req->timeSent ) > seconds(1));
+  //int elapsed_time = 
+  //  std::chrono::duration_cast<std::chrono::microseconds>((now - req->timeSent)).count();
+  //int one_second = std::chrono::duration_cast<std::chrono::microseconds>(seconds(1)).count();
+  //int diff = elapsed_time - one_second;
+  //std::cerr << diff << " microseconds\n";
+   bool hasBeenOneSecond = ((now - req->timeSent ) > seconds(1));
   if(hasBeenOneSecond) {
     if(req->nTimesSent >= 5){
-      std::cerr << "send icmp host unreachable to source addr of all pkts waiting on this request" << std::endl;
+      std::cerr << "Request has been sent out at least 5 times\n";
+	  std::cerr << "Remove request from cache\n";
       removeRequest(req);
     }
     else {
-
-      // arp_hdr arp_req;
-      // arp_req.arp_hrd = arp_hrd_ethernet;
-      // arp_req.arp_pro = ethertype_ip;
-      // arp_req.arp_hln = ETHER_ADDR_LEN;
-      // arp_req.arp_pln = 0x04;
-      // arp_req.arp_op = arp_op_request;
-      // arp_req.arp_sha = ;
-      // arp_req.arp_sip = ;
-      // arp_req.aro_tha = ;
-      // arp_req.arp_tip = ;
-
-      // sendPacket(buffer, interface)
+      m_router.sendARPRequest(req->ip);
       req->timeSent = now;
       req->nTimesSent++;
       std::cerr << "nTimes sent: " << req->nTimesSent << std::endl;
