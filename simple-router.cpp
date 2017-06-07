@@ -24,6 +24,77 @@ namespace simple_router {
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+
+void
+SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& dst_macAddr, const std::string& outIface) {
+  
+  // Buffer eth_frame;
+  // eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
+
+
+  std::cerr << "********* *Send Packet To Destination *********\nRequest IP: " << ipToString(req->ip) << std::endl;
+
+  for(const auto& p : req->packets) {
+    
+    const ethernet_hdr *ehdr = (const ethernet_hdr *)(p.packet.data());
+
+    ethernet_hdr eth_hdr;
+    memcpy(eth_hdr.ether_dhost, dst_macAddr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+    memcpy(eth_hdr.ether_shost, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
+    eth_hdr.ether_type = htons(ethertype_ip);
+    Buffer eth_frame;
+    eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
+
+    print_hdr_eth(eth_frame.data());
+
+
+    const ip_hdr *iphdr = (const ip_hdr*)(p.packet.data() + 14);
+    ip_hdr iph;
+    iph.ip_hl = iphdr->ip_hl;
+    iph.ip_v = iphdr->ip_v;
+    iph.ip_tos = iphdr->ip_tos;
+    iph.ip_len = iphdr->ip_len;
+    iph.ip_id = iphdr->ip_id;
+    iph.ip_off = iphdr->ip_off;
+    iph.ip_ttl = iphdr->ip_ttl;
+    iph.ip_p = iphdr->ip_p;
+    iph.ip_sum = iphdr->ip_sum;
+    iph.ip_src = iphdr->ip_src;
+    iph.ip_dst = iphdr->ip_dst;
+
+    Buffer ip_frame;
+    ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
+    print_hdr_ip(ip_frame.data());
+
+
+
+    const icmp_hdr *icmphdr = (const icmp_hdr*)(p.packet.data() + 14 + 20);
+    icmp_hdr icmph;
+    icmph.icmp_type = 0x08;
+    icmph.icmp_code = icmphdr->icmp_code;
+    icmph.icmp_sum  = icmphdr->icmp_sum;
+
+
+    Buffer icmp_frame;
+    icmp_frame.assign((unsigned char*)&icmph, (unsigned char*)&icmph + sizeof(icmp_hdr));    
+    print_hdr_icmp(icmp_frame.data());
+
+
+    eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
+    eth_frame.insert(eth_frame.end(), icmp_frame.begin(), icmp_frame.end());
+    eth_frame.insert(eth_frame.end(), p.packet.data() + 38, p.packet.data() + p.packet.size());
+
+    std::cerr << "Iface: " << outIface << std::endl;
+    std::cerr << "**** Sending packet to server from router." << std::endl;
+    print_hdrs(eth_frame);
+    sendPacket(eth_frame, outIface);
+  }
+
+  // const std::string& outIface
+
+  return;
+}
+
 void
 SimpleRouter::getPacket(const Buffer& ether_hdr, const Buffer& payload) {
   return;
@@ -147,9 +218,19 @@ void SimpleRouter::sendArpToGetIpMac(const Buffer& packet, const std::string& in
     arp_req.arp_op = htons(arp_op_request);
     
 
+    //get the client ip
+    const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
+    
+    // ethernet header
+    unsigned char client_macAddr[6];
+    memcpy(client_macAddr, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
+    
+
+
+
     // // source ip and hardware address
     Buffer mac_addr = outIface->addr;
-    memcpy(arp_req.arp_sha, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+    memcpy(arp_req.arp_sha, client_macAddr, ETHER_ADDR_LEN * sizeof(unsigned char));   //substitute packet.data() if you want router mac
     arp_req.arp_sip = outIface->ip;
 
     // // target ip and hardware address
@@ -164,7 +245,7 @@ void SimpleRouter::sendArpToGetIpMac(const Buffer& packet, const std::string& in
     ethernet_hdr eth_hdr;
 
     memcpy(eth_hdr.ether_dhost, &broadcast, ETHER_ADDR_LEN * sizeof(unsigned char));
-    memcpy(eth_hdr.ether_shost, mac_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+    memcpy(eth_hdr.ether_shost, client_macAddr, ETHER_ADDR_LEN * sizeof(unsigned char));   //CHANGE THIS
     eth_hdr.ether_type = htons(ethertype_arp);
     
     Buffer eth_frame;
@@ -174,7 +255,7 @@ void SimpleRouter::sendArpToGetIpMac(const Buffer& packet, const std::string& in
 
     eth_frame.insert(eth_frame.end(), arp_packet.begin(), arp_packet.end());
     std::cerr << "Sending this packet to srv to get MAC address..." << std::endl;
-
+    print_hdrs(eth_frame);
     sendPacket(eth_frame, r_entry.ifName );
 }
 
@@ -215,22 +296,6 @@ SimpleRouter::handleArpRequest(const Buffer& packet, const std::string& inIface)
 }
 
 
-  //  req = cache.insertArpEntry(ip, mac)
-
-  //  if req != nullptr:
-  //      send all packets on the req->packets linked list
-  //      cache.removeRequest(req)
-
-  /**
-   * This method performs two functions:
-   *
-   * 1) Looks up this IP in the request queue. If it is found, returns a pointer
-   *    to the ArpRequest with this IP. Otherwise, returns nullptr.
-   * 2) Inserts this IP to MAC mapping in the cache, and marks it valid.
-   */
-  // std::shared_ptr<ArpRequest>
-  // insertArpEntry(const Buffer& mac, uint32_t ip);
-
 void 
 SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
   std::cerr << "****** Handling arp reply from server******\n" << std::endl;
@@ -244,6 +309,8 @@ SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
   if(req != nullptr) {
     std::cerr << "Supposed to send all packets here!!!" << std::endl;
     //send all packets on the req->packets linked list
+    Buffer p;
+    sendPacketToDestination(req, mac_address, inIface);
     m_arp.removeRequest(req);
 
   }
@@ -272,9 +339,18 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   
   uint32_t ip_destination = iphdr->ip_dst;
   const Interface* iface = findIfaceByIp(ip_destination);
-  
+
+  //handle REPLY after sending stuff
+  //TODO: maybe check if it is an icmp first, before doing this all
+  const icmp_hdr *icmphdr = (const icmp_hdr*)(packet.data() + 14 + 20);
+  if(icmphdr->icmp_type == 0x0) {
+    std::cerr << "Forward ICMP packet from router back to client\n\n\n\n\n";
+    sendPacket(packet, inIface);
+
+  }
   // not directed to Router
-  if (iface == nullptr) {
+  else if (iface == nullptr) {
+
     std::cerr << "\nReceived packet, but interface is unknown, ignoring" << std::endl;
     //arp cache lookup
     //valid entry found, proceed w/ handling IP Packet
@@ -293,8 +369,8 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   else {
 	// ICMP packet
     if (iphdr->ip_p == 0x01) {
-	  std::cerr << "ICMP Packet" << std::endl;
-	  handleICMP(packet, inIface);
+      std::cerr << "ICMP Packet" << std::endl;
+      handleICMP(packet, inIface);
     }
     // forward packet
     else {
@@ -343,13 +419,18 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::cerr << "This interface mac address: ";
   std::cerr << macToString(iface->addr) << std::endl;
   
+
+  //TODO: on icmp reply, need to skip this check
   if (dest_addr.compare("ff:ff:ff:ff:ff:ff") && dest_addr.compare(iface_addr)) {
     // TODO: decide whether to print a message
 	std::cerr << "Dropped packet, since destination MAC address is invalid";
 	std::cerr << std::endl;
   }
 
+
+  std::cerr << "e_type: " << e_type << std::endl;
   if (e_type == ethertype_arp) {
+    std::cerr << "arp" << std::endl;
     const arp_hdr *hdr = reinterpret_cast<const arp_hdr*>(packet.data()+sizeof(ethernet_hdr));
     
     if(ntohs(hdr->arp_op) == arp_op_request) {
@@ -361,6 +442,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 
   }
   else if (e_type == ethertype_ip) {
+    std::cerr << "ip" << std::endl;
 	  handleIP(packet, inIface);
   }
   else {

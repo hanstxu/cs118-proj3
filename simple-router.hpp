@@ -33,6 +33,8 @@ public:
   SimpleRouter();
 
 
+  void sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& dst_macAddr, const std::string& outIface);
+
   /**
   * Helper function - Send Ethernet Packet w/ Payload
   */
@@ -43,6 +45,9 @@ public:
    */
   void handleICMP(const Buffer& packet, const std::string& inIface);
 
+  /**
+   * Helper function - send ARP request to get IP-MAC address mapping
+   */
   void sendArpToGetIpMac(const Buffer& packet, const std::string& inIface, uint32_t ip_destination);
 
   /**
@@ -59,6 +64,7 @@ public:
    * Helper function - handle IP packet
    */
   void handleIP(const Buffer& packet, const std::string& inIface);
+
   
   /**
    * IMPLEMENT THIS METHOD
