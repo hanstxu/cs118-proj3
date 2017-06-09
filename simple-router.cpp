@@ -92,7 +92,7 @@ SimpleRouter::getPacket(const Buffer& ether_hdr, const Buffer& payload) {
 }
 
 void
-SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
+SimpleRouter::sendICMP(const Buffer& packet, const std::string& inIface) {
   const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
   const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
   const icmp_hdr *icmphdr = (const icmp_hdr *)(packet.data() +
@@ -125,8 +125,10 @@ SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
   icmph.icmp_sum = 0x0;
   
   Buffer icmp_cksum;
-  icmp_cksum.assign((unsigned char*)&icmph, (unsigned char*)&icmph + 4);
-  icmp_cksum.insert(icmp_cksum.end(), packet.data() + 38, packet.data() + 98);
+  icmp_cksum.assign((unsigned char*)&icmph, (unsigned char*)&icmph
+    + sizeof(icmp_hdr));
+  icmp_cksum.insert(icmp_cksum.end(), packet.data() + sizeof(ethernet_hdr)
+    + sizeof(ip_hdr) + sizeof(icmp_hdr), packet.data() + packet.size());
   icmph.icmp_sum = cksum(icmp_cksum.data(), icmp_cksum.size());
   
   Buffer eth_frame;
@@ -138,10 +140,14 @@ SimpleRouter::handleICMP(const Buffer& packet, const std::string& inIface) {
   
   eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
   eth_frame.insert(eth_frame.end(), icmp_frame.begin(), icmp_frame.end());
-  eth_frame.insert(eth_frame.end(), packet.data() + 38, packet.data() + 98);
+  eth_frame.insert(eth_frame.end(), packet.data() + sizeof(ethernet_hdr)
+    + sizeof(ip_hdr) + sizeof(icmp_hdr), packet.data() + packet.size());
   
+  std::cerr << "\n******************************" << std::endl;
+  std::cerr << "* Sending ICMP Response back to client *" << std::endl;
+  std::cerr << "******************************" << std::endl;
+  print_hdrs(eth_frame);
   sendPacket(eth_frame, inIface);
-  
   return;
 }
 
@@ -274,23 +280,50 @@ SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
 
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
-  uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
-  const ip_hdr *iphdr = (const ip_hdr *)(ip_frame);
+  const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
   if (iphdr->ip_hl < 5) {
-    fprintf(stderr, "Failed sent IP packet, insufficient length for header\n");
+    fprintf(stderr, "Insufficient length for header of IP packet\n");
   }
   
-  if (cksum(ip_frame, 20) != 0xFFFF) {
-	fprintf(stderr, "Failed checksum, discard IP packe\n");
+  uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
+  if (cksum(ip_frame, iphdr->ip_hl * 4) != 0xFFFF) {
+	fprintf(stderr, "Failed checksum, discard IP packet\n");
   }
   
-  uint32_t ip_destination = iphdr->ip_dst;
-  const Interface* iface = findIfaceByIp(ip_destination);
+  const Interface* iface = findIfaceByIp(iphdr->ip_dst);
+  // Directed to router
+  if (iface != nullptr) {
+    // ICMP packet
+    if (iphdr->ip_p == ip_protocol_icmp) {
+      sendICMP(packet, inIface);
+    }
+    // Discard all other packets directed to router that is not ICMP
+    else {
+      std::cerr << "Discarded non-ICMP packet to router" << std::endl;
+      return;  
+    }
+  }
+  // Not directed to router
+  else {
+    std::cerr << "\nShould forward IP packet" << std::endl;
+    //arp cache lookup
+    //valid entry found, proceed w/ handling IP Packet
+    std::shared_ptr<ArpEntry> entry = m_arp.lookup(iphdr->ip_dst);
+    if(entry != nullptr) {
+      //proceed w/ handling ip packet
+    }
+    //queue received packet and start sending ARP request to discover the IP-MAC mapping
+    else {
+	  RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_dst);
+      m_arp.queueRequest(iphdr->ip_dst, packet, r_entry.ifName);
+    }
+    return;
+  }
 
   //handle REPLY after sending stuff
   //TODO: maybe check if it is an icmp first, before doing this all
-  const icmp_hdr *icmphdr = (const icmp_hdr*)(packet.data() + 14 + 20);
-  if(icmphdr->icmp_type == 0x0) {
+  /*const icmp_hdr *icmphdr = (const icmp_hdr*)(packet.data() + 14 + 20);*/
+  /*if(icmphdr->icmp_type == 0x0) {
     std::cerr << "\n**************************************************" << std::endl;
     std::cerr << "* Forward ICMP packet from router back to client *" << std::endl;
     std::cerr << "**************************************************" << std::endl;
@@ -298,36 +331,7 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     sendPacket(packet, inIface);
 
     std::cerr << "\n\n End. \n\n";
-  }
-  // not directed to Router
-  else if (iface == nullptr) {
-    std::cerr << "\nShould forward IP packet" << std::endl;
-    //arp cache lookup
-    //valid entry found, proceed w/ handling IP Packet
-    std::shared_ptr<ArpEntry> entry = m_arp.lookup(ip_destination);
-    if(entry != nullptr) {
-      //proceed w/ handling ip packet
-    }
-    //queue received packet and start sending ARP request to discover the IP-MAC mapping
-    else {
-	  RoutingTableEntry r_entry = m_routingTable.lookup(ip_destination);
-      m_arp.queueRequest(ip_destination, packet, r_entry.ifName);
-    }
-    return;
-  }
-  // directed to the router
-  else {
-	// ICMP packet
-    if (iphdr->ip_p == 0x01) {
-      std::cerr << "ICMP Packet" << std::endl;
-      handleICMP(packet, inIface);
-    }
-    // forward packet
-    else {
-      std::cerr << "Packet directed to router but no ICMP packet, so discard" << std::endl;
-      return;  
-    }
-  }
+  }*/
 
   return;
 }
@@ -365,7 +369,6 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   
   // if the ethrnet frame is not ARP or IPv4
   if(e_type != ethertype_arp && e_type != ethertype_ip) {
-    // TODO: print a message?
 	std::cerr << "ERROR: Not ARP or IPv4 Ether type" << std::endl;
   }
   // Packet is ARP
@@ -374,7 +377,7 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
     if(ntohs(hdr->arp_op) == arp_op_request) {
       handleArpRequest(packet, inIface);
     }
-	// handle remove request here
+	// handle arp_op_reply
     else {
 	  std::shared_ptr<ArpRequest> req = m_arp.insertArpEntry(packet, hdr->arp_sip);
 	  m_arp.removeRequest(req);
