@@ -43,7 +43,7 @@ public:
   /**
    * Helper function - handle ICMP packet
    */
-  void handleICMP(const Buffer& packet, const std::string& inIface);
+  void sendICMP(const Buffer& packet, const std::string& inIface);
 
   /**
    * Helper function - send ARP request to get IP-MAC address mapping
