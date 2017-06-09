@@ -27,10 +27,13 @@ namespace simple_router {
 // IMPLEMENT THIS METHOD
 
 void
-SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, const Buffer& src_addr) {
+SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, const Buffer& src_addr) {  
+  const Interface* iface = findIfaceByName(outIface);
+
   ethernet_hdr eth_hdr;
-  memcpy(eth_hdr.ether_dhost, packet.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
-  memcpy(eth_hdr.ether_shost, src_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
+  memcpy(eth_hdr.ether_dhost, src_addr.data(), ETHER_ADDR_LEN *
+    sizeof(unsigned char));
+  memcpy(eth_hdr.ether_shost, (iface->addr).data(), ETHER_ADDR_LEN * sizeof(unsigned char));
   eth_hdr.ether_type = htons(ethertype_ip);
   Buffer eth_frame;
   eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + 14);
