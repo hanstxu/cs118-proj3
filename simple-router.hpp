@@ -32,13 +32,9 @@ public:
 
   SimpleRouter();
 
+  void forwardPacket(const Buffer& packet, const std::string& outIface, const Buffer& src_addr);
 
   void sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& dst_macAddr, const std::string& outIface);
-
-  /**
-  * Helper function - Send Ethernet Packet w/ Payload
-  */
-  void getPacket(const Buffer& ether_hdr, const Buffer& payload);
 
   /**
    * Helper function - handle ICMP packet

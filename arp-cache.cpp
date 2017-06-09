@@ -38,31 +38,32 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
   
   //Handle all requests in queued requests
   for(auto& request : m_arpRequests) {
-	std::cerr << "what's going on\n";
+	  std::cerr << "what's going on\n";
     handle_arpreq(request);
   }
 
+/*
   std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
   for (auto& entry : m_cacheEntries) {
     std::cerr << entry->isValid << " isValid value\n";
   }
-  
-  std::shared_ptr<ArpEntry> remove_entry;
+  */
+ // std::shared_ptr<ArpEntry> remove_entry;
   
   //Remove invalid entries
-  for (auto& entry : m_cacheEntries) {
+  //for (auto& entry : m_cacheEntries) {
     //if not entry->isValid
-    if(!entry->isValid) {
+  //  if(!entry->isValid) {
       //record entry for removal
-      remove_entry = entry;
-    }
-  }
+  //    remove_entry = entry;
+  //  }
+  //}
   
   //remove entry marked for removal
-  if (remove_entry != nullptr)
-    removeEntry(remove_entry);
+  //if (remove_entry != nullptr)
+  //  removeEntry(remove_entry);
 
-  std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
+  //std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
 }
 
 void
@@ -81,10 +82,10 @@ ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
       removeRequest(req);
     }
     else {
-      m_router.sendARPRequest(req->ip);
       req->timeSent = now;
       req->nTimesSent++;
       std::cerr << "nTimes sent: " << req->nTimesSent << std::endl;
+      m_router.sendARPRequest(req->ip);
     }
   }
 }
