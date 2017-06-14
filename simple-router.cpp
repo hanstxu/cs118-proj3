@@ -46,13 +46,29 @@ SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, c
   iph.ip_len = iphdr->ip_len;
   iph.ip_id = iphdr->ip_id;
   iph.ip_off = iphdr->ip_off;
-  iph.ip_ttl = iphdr->ip_ttl;
+  iph.ip_ttl = ((iphdr->ip_ttl) - 1);
   iph.ip_p = iphdr->ip_p;
-  iph.ip_sum = iphdr->ip_sum;
+  iph.ip_sum = 0;
   iph.ip_src = iphdr->ip_src;
   iph.ip_dst = iphdr->ip_dst;
+  
+  
+  
+  //below
+  Buffer ip_cksum;
+  ip_cksum.assign((unsigned char*)&iph, (unsigned char*)&iph
+    + sizeof(ip_hdr));
+  iph.ip_sum = cksum(ip_cksum.data(), ip_cksum.size());
+  std::cerr << std::endl <<"***\nChecksum: " << iph.ip_sum << "***\n" << std::endl;
+
   Buffer ip_frame;
   ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
+  // iph.ip_sum = cksum(ip_cksum.data(), ip_cksum.size());  
+  
+  //above
+  
+  // Buffer ip_frame;
+  // ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
   
   eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
   eth_frame.insert(eth_frame.end(), packet.data() + sizeof(ethernet_hdr) +
@@ -87,11 +103,16 @@ SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& d
     iph.ip_len = iphdr->ip_len;
     iph.ip_id = iphdr->ip_id;
     iph.ip_off = iphdr->ip_off;
-    iph.ip_ttl = iphdr->ip_ttl;
+    iph.ip_ttl = (iphdr->ip_ttl) - 1;
     iph.ip_p = iphdr->ip_p;
-    iph.ip_sum = iphdr->ip_sum;
+    iph.ip_sum = 0;
     iph.ip_src = iphdr->ip_src;
     iph.ip_dst = iphdr->ip_dst;
+
+    Buffer ip_cksum;
+    ip_cksum.assign((unsigned char*)&iph, (unsigned char*)&iph
+      + sizeof(ip_hdr));
+    iph.ip_sum = cksum(ip_cksum.data(), ip_cksum.size());
 
     Buffer ip_frame;
     ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
