@@ -37,6 +37,11 @@ public:
   void sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& dst_macAddr, const std::string& outIface);
 
   /**
+   * Helper function - send time exceeded if ttl is 0
+   */
+  void sendTimeExceeded(const Buffer& packet, const std::string& inIface);
+
+  /**
    * Helper function - handle ICMP packet
    */
   void sendICMP(const Buffer& packet, const std::string& inIface);
