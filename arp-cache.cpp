@@ -33,7 +33,7 @@ void
 ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
   // FILL THIS IN
-  //std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
+  std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
   std::cerr << "ARP requests size: " << m_arpRequests.size() << std::endl;
   
   //Handle all requests in queued requests
@@ -42,26 +42,25 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     handle_arpreq(request);
   }
 
-/*
   std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
   for (auto& entry : m_cacheEntries) {
     std::cerr << entry->isValid << " isValid value\n";
   }
-  */
- // std::shared_ptr<ArpEntry> remove_entry;
   
-  //Remove invalid entries
-  //for (auto& entry : m_cacheEntries) {
-    //if not entry->isValid
-  //  if(!entry->isValid) {
+  std::shared_ptr<ArpEntry> remove_entry;
+  
+  // Remove invalid entries
+  for (auto& entry : m_cacheEntries) {
+    if(!entry->isValid) {
       //record entry for removal
-  //    remove_entry = entry;
-  //  }
-  //}
+      cacheEntriesToRemove.push_back(entry);
+    }
+  }
   
   //remove entry marked for removal
-  //if (remove_entry != nullptr)
-  //  removeEntry(remove_entry);
+  for (auto& entry : cacheEntriesToRemove) {
+	  m_cacheEntries.remove(entry);
+  }
 
   //std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
 }
@@ -150,14 +149,6 @@ ArpCache::removeRequest(const std::shared_ptr<ArpRequest>& entry)
   std::lock_guard<std::mutex> lock(m_mutex);
   m_arpRequests.remove(entry);
 }
-
-void
-ArpCache::removeEntry(const std::shared_ptr<ArpEntry>& entry)
-{
-  std::lock_guard<std::mutex> lock(m_mutex);
-  m_cacheEntries.remove(entry);
-}
-
 
 std::shared_ptr<ArpRequest>
 ArpCache::insertArpEntry(const Buffer& mac, uint32_t ip)
