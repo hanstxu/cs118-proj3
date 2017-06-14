@@ -351,14 +351,26 @@ SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
 void
 SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
+  //Insufficient header length
   if (iphdr->ip_hl < 5) {
     fprintf(stderr, "Insufficient length for header of IP packet\n");
   }
-  
+
+  //Failed checksum
   uint8_t* ip_frame = (uint8_t*)(packet.data() + sizeof(ethernet_hdr));
   if (cksum(ip_frame, iphdr->ip_hl * 4) != 0xFFFF) {
-	fprintf(stderr, "Failed checksum, discard IP packet\n");
+	  fprintf(stderr, "Failed checksum, discard IP packet\n");
   }
+
+  //TTL is 0
+  if(iphdr->ip_sum == 0) {
+    std::cerr << "TTL IS 0!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+    return;
+  }
+  else {
+    std::cerr << "TTL IS NOT 0!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+  }
+
   
   const Interface* iface = findIfaceByIp(iphdr->ip_dst);
   // Directed to router
