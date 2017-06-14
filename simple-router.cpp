@@ -52,8 +52,6 @@ SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, c
   iph.ip_src = iphdr->ip_src;
   iph.ip_dst = iphdr->ip_dst;
   
-  
-  
   //below
   Buffer ip_cksum;
   ip_cksum.assign((unsigned char*)&iph, (unsigned char*)&iph
@@ -147,6 +145,69 @@ SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& d
 
   return;
 }
+
+
+void
+SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface) {
+  const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
+  const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
+	
+  // ethernet header
+  ethernet_hdr eth_hdr;
+  memcpy(eth_hdr.ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
+  memcpy(eth_hdr.ether_shost, ehdr->ether_dhost, ETHER_ADDR_LEN * sizeof(unsigned char));
+  eth_hdr.ether_type = htons(ethertype_ip);
+  
+  // ip header
+  ip_hdr iph;
+  iph.ip_hl = iphdr->ip_hl;
+  iph.ip_v = iphdr->ip_v;
+  iph.ip_tos = iphdr->ip_tos;
+  iph.ip_len = iphdr->ip_len;
+  iph.ip_id = iphdr->ip_id;
+  iph.ip_off = iphdr->ip_off;
+  iph.ip_ttl = iphdr->ip_ttl;
+  iph.ip_p = iphdr->ip_p;
+  iph.ip_sum = iphdr->ip_sum;
+  iph.ip_src = iphdr->ip_dst;
+  iph.ip_dst = iphdr->ip_src;
+  
+  // icmp header
+  icmp_t3_hdr icmph;
+  icmph.icmp_type = 0xB;    //type 11
+  icmph.icmp_code = 0x0;    //type 0
+  icmph.icmp_sum = 0x0;
+  icmph.unused = 0x0;       //pad with 0
+  icmph.next_mtu = 0x0;     //pad with 0
+ 
+  
+  Buffer icmp_cksum;
+  icmp_cksum.assign((unsigned char*)&icmph, (unsigned char*)&icmph
+    + sizeof(icmp_t3_hdr));
+  icmp_cksum.insert(icmp_cksum.end(), packet.data() + sizeof(ethernet_hdr),
+    packet.data() + sizeof(ethernet_hdr) + ICMP_DATA_SIZE);
+  icmph.icmp_sum = cksum(icmp_cksum.data(), icmp_cksum.size());
+  
+  Buffer eth_frame;
+  eth_frame.assign((unsigned char*)&eth_hdr, (unsigned char*)&eth_hdr + sizeof(ethernet_hdr));
+  Buffer ip_frame;
+  ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
+  Buffer icmp_frame;
+  icmp_frame.assign((unsigned char*)&icmph, (unsigned char*)&icmph + sizeof(icmp_t3_hdr));
+  
+  eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
+  eth_frame.insert(eth_frame.end(), icmp_frame.begin(), icmp_frame.end());
+  eth_frame.insert(eth_frame.end(), packet.data() + sizeof(ethernet_hdr),
+    packet.data() + sizeof(ethernet_hdr) + ICMP_DATA_SIZE);
+  
+  std::cerr << "\n******************************" << std::endl;
+  std::cerr << "* Sending ICMP Time Exceeded Response back to client *" << std::endl;
+  std::cerr << "******************************" << std::endl;
+  print_hdrs(eth_frame);
+  sendPacket(eth_frame, inIface);
+  return;
+}
+
 
 void
 SimpleRouter::sendICMP(const Buffer& packet, const std::string& inIface) {
@@ -362,15 +423,6 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 	  fprintf(stderr, "Failed checksum, discard IP packet\n");
   }
 
-  //TTL is 0
-  if(iphdr->ip_sum == 0) {
-    std::cerr << "TTL IS 0!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-    return;
-  }
-  else {
-    std::cerr << "TTL IS NOT 0!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
-  }
-
   
   const Interface* iface = findIfaceByIp(iphdr->ip_dst);
   // Directed to router
@@ -387,6 +439,13 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   }
   // Not directed to router
   else {
+    //TTL is 0
+    if(iphdr->ip_sum == 1) {
+      std::cerr << "TTL will be 0" << std::endl;
+      sendTimeExceeded(packet, inIface);
+      return;
+    }
+    
     RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_dst);
     std::cerr << m_routingTable << std::endl;
     //finds entry
