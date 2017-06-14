@@ -34,7 +34,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
   // FILL THIS IN
   std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
-  std::cerr << "ARP requests size: " << m_arpRequests.size() << std::endl;
+  // std::cerr << "ARP requests size: " << m_arpRequests.size() << std::endl;
   
   //Handle all requests in queued requests
   for(auto& request : m_arpRequests) {
@@ -42,7 +42,7 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
     handle_arpreq(request);
   }
 
-  std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
+  // std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
   for (auto& entry : m_cacheEntries) {
     std::cerr << entry->isValid << " isValid value\n";
   }
