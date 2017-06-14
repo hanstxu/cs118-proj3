@@ -57,23 +57,14 @@ SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, c
   ip_cksum.assign((unsigned char*)&iph, (unsigned char*)&iph
     + sizeof(ip_hdr));
   iph.ip_sum = cksum(ip_cksum.data(), ip_cksum.size());
-  std::cerr << std::endl <<"***\nChecksum: " << iph.ip_sum << "***\n" << std::endl;
 
   Buffer ip_frame;
   ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
-  // iph.ip_sum = cksum(ip_cksum.data(), ip_cksum.size());  
-  
-  //above
-  
-  // Buffer ip_frame;
-  // ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
   
   eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
   eth_frame.insert(eth_frame.end(), packet.data() + sizeof(ethernet_hdr) +
     sizeof(ip_hdr), packet.data() + packet.size());
   
-  std::cerr << "Forwarding Packet back to client hopefully" << std::endl;
-  print_hdrs(eth_frame);
   sendPacket(eth_frame, outIface);
 }
 
@@ -388,25 +379,6 @@ SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
     sendPacketToDestination(req, mac_address, inIface);
     m_arp.removeRequest(req);
   }
-  
-
-  // // std::cerr << "MAC Address: " << macToString(mac_address) << ", and IP address: " << ipToString(hdr->arp_sip) << std::endl;
-  // // std::cerr << m_arp;
-  // std::shared_ptr<ArpRequest> req = m_arp.insertArpEntry(mac_address, hdr->arp_sip);
-  // std::cerr << "Just inserted arp entry" << std::endl;
-  // if(req != nullptr) {
-  //   //send all packets on the req->packets linked list
-	// // forward FROM router to server
-  //   sendPacketToDestination(req, mac_address, inIface);
-  //   m_arp.removeRequest(req);
-
-  // }
-  // else {
-  //   std::cerr << "Inserted into mac mapping then..?" << std::endl;
-  // }
-
-  // //print m_arp again
-  // //std::cerr << m_arp;
 }
 
 void
@@ -457,27 +429,10 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     }
     else {
       //forward back to client
-      // sendPacketToDestination(packet, iphdr, inIface);
-      std::cerr << "*************************************Forward packet now!!!!!!! " << std::endl;
-      print_hdrs(packet);
-      fprintf(stderr, "mac: %s\n", macToString(a_entry->mac).c_str());
       forwardPacket(packet, r_entry.ifName, a_entry->mac);
     }
   }
-
-  //handle REPLY after sending stuff
-  //TODO: maybe check if it is an icmp first, before doing this all
-  /*const icmp_hdr *icmphdr = (const icmp_hdr*)(packet.data() + 14 + 20);*/
-  /*if(icmphdr->icmp_type == 0x0) {
-    std::cerr << "\n**************************************************" << std::endl;
-    std::cerr << "* Forward ICMP packet from router back to client *" << std::endl;
-    std::cerr << "**************************************************" << std::endl;
-    print_hdrs(packet);
-    sendPacket(packet, inIface);
-
-    std::cerr << "\n\n End. \n\n";
-  }*/
-
+  
   return;
 }
 

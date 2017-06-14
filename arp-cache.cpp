@@ -222,15 +222,7 @@ operator<<(std::ostream& os, const ArpCache& cache)
        << entry->isValid
        << "\n";
   }
-
-  os << "^Above are the cache entries, below are the arp-reqs in queue." << std::endl;
-
-  for (const auto& entry : cache.m_arpRequests) {
-
-    os << ipToString(entry->ip) << "   "
-       << "\n";
-  }
-  os << "-----------------------------------------------------------" <<std::endl;
+  os << std::endl;
   return os;
 }
 
