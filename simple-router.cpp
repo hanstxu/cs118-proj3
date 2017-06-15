@@ -210,7 +210,7 @@ SimpleRouter::getICMPResponse(const Buffer& packet, const std::string& inIface) 
   iph.ip_len = iphdr->ip_len;
   iph.ip_id = iphdr->ip_id;
   iph.ip_off = iphdr->ip_off;
-  iph.ip_ttl = iphdr->ip_ttl;
+  iph.ip_ttl = 65;
   iph.ip_p = iphdr->ip_p;
   iph.ip_sum = iphdr->ip_sum;
   iph.ip_src = iphdr->ip_dst;
