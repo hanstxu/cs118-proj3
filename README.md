@@ -73,3 +73,6 @@ We also referenced piazza for any spec clarifications and other questions we had
 
 We completed the first extra credit (i.e. sending an ICMP destination
 unreachable when no ARP reply after 5 requests).
+
+We also think that we completed the other extra credit because
+it seems like a requirement for the other traceroutes to work.
