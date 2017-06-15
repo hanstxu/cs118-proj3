@@ -68,3 +68,8 @@ the ARP protocol, how ethernet works, how router works, how the IP headers
 worked, and how ICMP messages work.
 
 We also referenced piazza for any spec clarifications and other questions we had.
+
+## Extra Credit
+
+We completed the first extra credit (i.e. sending an ICMP destination
+unreachable when no ARP reply after 5 requests).

@@ -39,7 +39,8 @@ public:
   /**
    * Helper function - send time exceeded if ttl is 0
    */
-  void sendTimeExceeded(const Buffer& packet, const std::string& inIface, uint8_t type, uint8_t code, uint32_t ip, const Buffer& addr);
+  void sendTimeExceeded(const Buffer& packet, const std::string& inIface,
+    uint8_t type, uint8_t code, uint32_t ip, const Buffer& addr);
 
   /**
    * Helper function - handle ICMP packet
