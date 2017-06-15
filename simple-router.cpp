@@ -70,15 +70,12 @@ SimpleRouter::forwardPacket(const Buffer& packet, const std::string& outIface, c
 
 void
 SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& dst_macAddr, const std::string& outIface) {
-  // std::cerr << "********* *Send Packet To Destination *********\nRequest IP: " << ipToString(req->ip) << std::endl;
-
   const Interface* iface = findIfaceByName(outIface);
   Buffer src_addr = iface->addr;
 
   for(const auto& p : req->packets) {
     ethernet_hdr eth_hdr;
     memcpy(eth_hdr.ether_dhost, dst_macAddr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
-    // memcpy(eth_hdr.ether_shost, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
     memcpy(eth_hdr.ether_shost, src_addr.data(), ETHER_ADDR_LEN * sizeof(unsigned char));
     eth_hdr.ether_type = htons(ethertype_ip);
     Buffer eth_frame;
@@ -106,21 +103,7 @@ SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& d
     Buffer ip_frame;
     ip_frame.assign((unsigned char*)&iph, (unsigned char*)&iph + sizeof(ip_hdr));
 
-/*
-    const icmp_hdr *icmphdr = (const icmp_hdr*)(p.packet.data() + 14 + 20);
-    icmp_hdr icmph;
-    icmph.icmp_type = 0x08;
-    icmph.icmp_code = icmphdr->icmp_code;
-    icmph.icmp_sum  = icmphdr->icmp_sum;
-    */
-
-
-    // Buffer icmp_frame;
-    // icmp_frame.assign((unsigned char*)&icmph, (unsigned char*)&icmph + sizeof(icmp_hdr));    
-
-
     eth_frame.insert(eth_frame.end(), ip_frame.begin(), ip_frame.end());
-   // eth_frame.insert(eth_frame.end(), icmp_frame.begin(), icmp_frame.end());
     eth_frame.insert(eth_frame.end(), p.packet.data() + sizeof(ethernet_hdr) +
       sizeof(ip_hdr), p.packet.data() + p.packet.size());
 
@@ -132,8 +115,6 @@ SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& d
     sendPacket(eth_frame, outIface);
   }
 
-  // const std::string& outIface
-
   return;
 }
 
@@ -142,8 +123,6 @@ void
 SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface, uint8_t type, uint8_t code, uint32_t ip, const Buffer& addr) {
   const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
   const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
-	const Interface* temp_sol = findIfaceByName(inIface);
-
 
   // ethernet header
   ethernet_hdr eth_hdr;
@@ -212,14 +191,14 @@ SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface,
 }
 
 
-void
-SimpleRouter::sendICMP(const Buffer& packet, const std::string& inIface) {
+Buffer
+SimpleRouter::getICMPResponse(const Buffer& packet, const std::string& inIface) {
   const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
   const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
 	
   // ethernet header
   ethernet_hdr eth_hdr;
-  memcpy(eth_hdr.ether_dhost, ehdr->ether_shost, ETHER_ADDR_LEN * sizeof(unsigned char));
+  memset(eth_hdr.ether_dhost, 0, ETHER_ADDR_LEN * sizeof(unsigned char));
   memcpy(eth_hdr.ether_shost, ehdr->ether_dhost, ETHER_ADDR_LEN * sizeof(unsigned char));
   eth_hdr.ether_type = htons(ethertype_ip);
   
@@ -263,11 +242,10 @@ SimpleRouter::sendICMP(const Buffer& packet, const std::string& inIface) {
     + sizeof(ip_hdr) + sizeof(icmp_hdr), packet.data() + packet.size());
   
   std::cerr << "\n******************************" << std::endl;
-  std::cerr << "* Sending ICMP Response back to client *" << std::endl;
+  std::cerr << "* Constructing ICMP Response back to client *" << std::endl;
   std::cerr << "******************************" << std::endl;
   print_hdrs(eth_frame);
-  sendPacket(eth_frame, inIface);
-  return;
+  return eth_frame;
 }
 
 void SimpleRouter::sendARPRequest(uint32_t ip) {
@@ -378,9 +356,6 @@ SimpleRouter::handleArpRequest(const Buffer& packet, const std::string& inIface)
 
 void 
 SimpleRouter::handleArpReply(const Buffer& packet, const std::string& inIface) {
-  // std::cerr << "****** Handling arp reply from server******\n" << std::endl;
-  
-
   const arp_hdr *arphdr = reinterpret_cast<const arp_hdr*>(packet.data() + sizeof(ethernet_hdr));
   Buffer mac_address(arphdr->arp_sha, arphdr->arp_sha + ETHER_ADDR_LEN);
  
@@ -412,13 +387,20 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
   // Directed to router
   if (iface != nullptr) {
     // ICMP packet
-    std::cerr << "hello 1" << std::endl;
     if (iphdr->ip_p == ip_protocol_icmp) {
-      sendICMP(packet, inIface);
+      Buffer response = getICMPResponse(packet, inIface);
+	  RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_src);
+      std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(r_entry.gw);
+      if(a_entry == nullptr) {
+        //queue mapping
+        m_arp.queueRequest(r_entry.gw, response, r_entry.ifName);
+      }
+      else {
+        //forward back to client
+        forwardPacket(response, r_entry.ifName, a_entry->mac);
+      }
     }
-    
     else if (iphdr->ip_p == 0x11 || iphdr->ip_p == 0x06)  {
-      std::cerr << "hello 2" << std::endl;
       const Interface* iface_icmp = findIfaceByIp(iphdr->ip_dst);
       sendTimeExceeded(packet, inIface, 0x0003, 0x0003, iphdr->ip_dst,iface_icmp->addr );
     }
@@ -439,7 +421,6 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     }
     
     RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_dst);
-    // std::cerr << m_routingTable << std::endl;
     //finds entry
     std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(r_entry.gw);
     //IP to MAC mapping not in cache

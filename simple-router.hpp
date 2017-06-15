@@ -44,7 +44,7 @@ public:
   /**
    * Helper function - handle ICMP packet
    */
-  void sendICMP(const Buffer& packet, const std::string& inIface);
+  Buffer getICMPResponse(const Buffer& packet, const std::string& inIface);
 
   /**
    * Helper function - send ARP request to get IP-MAC address mapping
