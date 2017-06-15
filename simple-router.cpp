@@ -118,9 +118,9 @@ SimpleRouter::sendPacketToDestination(std::shared_ptr<ArpRequest> req, Buffer& d
   return;
 }
 
-
 void
-SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface, uint8_t type, uint8_t code, uint32_t ip, const Buffer& addr) {
+SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface,
+  uint8_t type, uint8_t code, uint32_t ip, const Buffer& addr) {
   const ethernet_hdr *ehdr = (const ethernet_hdr *)(packet.data());
   const ip_hdr *iphdr = (const ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
 
@@ -143,8 +143,6 @@ SimpleRouter::sendTimeExceeded(const Buffer& packet, const std::string& inIface,
   iph.ip_sum = 0;
   iph.ip_src = ip;
   iph.ip_dst = iphdr->ip_src;
-  
-
 
     //below
   Buffer ip_cksum;
@@ -250,7 +248,6 @@ SimpleRouter::getICMPResponse(const Buffer& packet, const std::string& inIface) 
 
 void SimpleRouter::sendARPRequest(uint32_t ip) {
   RoutingTableEntry r_entry = m_routingTable.lookup(ip);
-  std::cerr << "lookp\n";
   const Interface* outIface = findIfaceByName(r_entry.ifName);
   
   // ARP header
@@ -390,10 +387,10 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     if (iphdr->ip_p == ip_protocol_icmp) {
       Buffer response = getICMPResponse(packet, inIface);
 	  RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_src);
-      std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(r_entry.gw);
+      std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(iphdr->ip_src);
       if(a_entry == nullptr) {
         //queue mapping
-        m_arp.queueRequest(r_entry.gw, response, r_entry.ifName);
+        m_arp.queueRequest(iphdr->ip_src, response, r_entry.ifName);
       }
       else {
         //forward back to client
@@ -402,7 +399,8 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     }
     else if (iphdr->ip_p == 0x11 || iphdr->ip_p == 0x06)  {
       const Interface* iface_icmp = findIfaceByIp(iphdr->ip_dst);
-      sendTimeExceeded(packet, inIface, 0x0003, 0x0003, iphdr->ip_dst,iface_icmp->addr );
+      sendTimeExceeded(packet, inIface, 0x0003, 0x0003, iphdr->ip_dst,
+        iface_icmp->addr);
     }
     // Discard all other packets directed to router that is not ICMP
     else {
@@ -416,17 +414,19 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
     if(iphdr->ip_ttl == 1) {
       std::cerr << "TTL will be 0" << std::endl;
       const Interface* iface_icmp = findIfaceByName(inIface);
-      sendTimeExceeded(packet, inIface, 0x000B, 0x0000, iface_icmp->ip, iface_icmp->addr);
+      sendTimeExceeded(packet, inIface, 0x000B, 0x0000, iface_icmp->ip,
+	    iface_icmp->addr);
       return;
     }
     
     RoutingTableEntry r_entry = m_routingTable.lookup(iphdr->ip_dst);
     //finds entry
-    std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(r_entry.gw);
+	std::shared_ptr<ArpEntry> a_entry = m_arp.lookup(iphdr->ip_dst);
+	
     //IP to MAC mapping not in cache
     if(a_entry == nullptr) {
       //queue mapping
-      m_arp.queueRequest(r_entry.gw, packet, r_entry.ifName);
+      m_arp.queueRequest(iphdr->ip_dst, packet, r_entry.ifName);
     }
     else {
       //forward back to client
@@ -440,12 +440,12 @@ SimpleRouter::handleIP(const Buffer& packet, const std::string& inIface) {
 void
 SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
 {
-  // std::cerr << "\n********************************" << std::endl;
-  // std::cerr << "* Packet received, printing... *" << std::endl;
-  // std::cerr << "********************************" << std::endl;
+  std::cerr << "\n********************************" << std::endl;
+  std::cerr << "* Packet received, printing... *" << std::endl;
+  std::cerr << "********************************" << std::endl;
   std::cerr << "Got packet of size " << packet.size() << " on interface " << inIface << std::endl;
   
-  // print_hdrs(packet);
+  print_hdrs(packet);
 
   // get current interface
   const Interface* iface = findIfaceByName(inIface);
@@ -458,7 +458,6 @@ SimpleRouter::handlePacket(const Buffer& packet, const std::string& inIface)
   std::string dest_addr = macToString(packet);
   std::string iface_addr = macToString(iface->addr);
   if (dest_addr.compare("ff:ff:ff:ff:ff:ff") && dest_addr.compare(iface_addr)) {
-    // TODO: decide whether to print a message
 	  std::cerr << "Dropped packet, since destination MAC address is invalid";
 	  std::cerr << std::endl;
 	  return;

@@ -34,17 +34,13 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
 {
   // FILL THIS IN
   std::list<std::shared_ptr<ArpEntry>> cacheEntriesToRemove;
-  // std::cerr << "ARP requests size: " << m_arpRequests.size() << std::endl;
+  uint32_t req_size = m_arpRequests.size();
   
   //Handle all requests in queued requests
   for(auto& request : m_arpRequests) {
-	  std::cerr << "what's going on\n";
     handle_arpreq(request);
-  }
-
-  // std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
-  for (auto& entry : m_cacheEntries) {
-    std::cerr << entry->isValid << " isValid value\n";
+	if (req_size != m_arpRequests.size())
+		return;
   }
   
   std::shared_ptr<ArpEntry> remove_entry;
@@ -61,8 +57,6 @@ ArpCache::periodicCheckArpRequestsAndCacheEntries()
   for (auto& entry : cacheEntriesToRemove) {
 	  m_cacheEntries.remove(entry);
   }
-
-  //std::cerr << "ARP cache size: " << m_cacheEntries.size() << std::endl;
 }
 
 void
@@ -78,7 +72,16 @@ ArpCache::handle_arpreq(std::shared_ptr<ArpRequest>& req) {
     if(req->nTimesSent >= 5){
       std::cerr << "Request has been sent out at least 5 times\n";
 	  std::cerr << "Remove request from cache\n";
-      removeRequest(req);
+	  Buffer orig_packet = req->packets.front().packet;
+	  const ip_hdr *iphdr = (const ip_hdr *)(orig_packet.data() + sizeof(ethernet_hdr));
+	  RoutingTableEntry r_entry = m_router.getRoutingTable().lookup(iphdr->ip_src);
+	  std::cerr << r_entry.ifName << std::endl;
+	  const Interface* iface = m_router.findIfaceByName(r_entry.ifName);
+	  Buffer mac_addr = iface->addr;
+	  std::cerr << macToString(mac_addr) << std::endl;
+	  m_router.sendTimeExceeded(orig_packet, r_entry.ifName, 0x0003, 0x0001,
+	    iface->ip, mac_addr);
+      m_arpRequests.remove(req);
     }
     else {
       req->timeSent = now;
